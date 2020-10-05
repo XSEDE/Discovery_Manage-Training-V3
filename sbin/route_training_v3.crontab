@@ -1,0 +1,1 @@
+*/5        6-21    * * * /bin/bash -l -c "/soft/warehouse-apps-1.0/Manage-Training-V3/PROD/sbin/route_training_v3.rc start"
