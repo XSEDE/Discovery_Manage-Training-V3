@@ -1,0 +1,3 @@
+
+        self.COURSEDATA = {}
+        self.PROVIDERDATA = {}
