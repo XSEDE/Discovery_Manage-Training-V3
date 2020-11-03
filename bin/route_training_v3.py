@@ -13,7 +13,6 @@ import logging.handlers
 import os
 import psycopg2
 import pwd
-from pydicti import dicti
 import re
 import shutil
 import signal
@@ -169,14 +168,14 @@ class HandleLoad():
 
         # Map stored by class title used to merge class information from the spreadsheet
         # and the portal table. Allow case insensitive searches of keys.
-        self.COURSEDATA = dicti()
+        self.COURSEDATA = {}
 
         # Map portal class information by class_id so class_sessions can find it later.
         self.COURSEINFO = {}
 
         # Store a map of provider data from all of the sources. Allow case insensitive
         # searches of keys.
-        self.PROVIDERDATA = dicti()
+        self.PROVIDERDATA = {}
 
         # Store a map of provider data from all of the sources
         self.COURSEPROVIDER = {}
@@ -365,7 +364,7 @@ class HandleLoad():
             provider_id = ''
             if provider_name.lower() in self.PROVIDERDATA:
                 new_provider = False
-                provider_id = self.PROVIDERDATA[provider_name]['ID']
+                provider_id = self.PROVIDERDATA[provider_name.lower()]['ID']
             else:
                 new_provider = True
 
@@ -373,10 +372,10 @@ class HandleLoad():
 
 
             if item['title'].lower() in self.COURSEDATA:
-                DATA = self.COURSEDATA[item['title']]
+                DATA = self.COURSEDATA[item['title'].lower()]
 
                 # Remove the old course (using its GLOBALRUN) from its provider record.
-                self.COURSEPROVIDER.pop(self.COURSEDATA[item['title']]['ID'], None)
+                self.COURSEPROVIDER.pop(self.COURSEDATA[item['title'].lower()]['ID'], None)
 
                 # If the training class is used by a training_class_session,
                 # Use myGLOBALURN, LocalID from the Portal database for merged data.
@@ -412,7 +411,7 @@ class HandleLoad():
                 ProviderRecord['EntityJSON'] = json.dumps(item['center'])
                 ProviderRecord['Name'] = item['center']
 
-                self.PROVIDERDATA[provider_name] = ProviderRecord
+                self.PROVIDERDATA[provider_name.lower()] = ProviderRecord
 
             # Add this course to the map of courses associated with the provider.
             self.COURSEPROVIDER[myGLOBALURN] = provider_name
@@ -429,7 +428,7 @@ class HandleLoad():
                 # Store the course information for the live portion of the course.
                 live_course_title = course_title + " - Live"
                 DATA['ResourceGroup'] = 'Live Events'
-                self.COURSEDATA[live_course_title] = DATA
+                self.COURSEDATA[live_course_title.lower()] = DATA
 
                 # Set up the course information for the streamed portion of the course to be saved below.
                 course_title += " - Streamed"
@@ -440,7 +439,7 @@ class HandleLoad():
             else:
                 DATA['ResourceGroup'] = 'Streamed Events'
 
-            self.COURSEDATA[course_title] = DATA
+            self.COURSEDATA[course_title.lower()] = DATA
 
         # Store the merged list of spreadsheet and portal classes in the warehouse.
         for course_name, DATA in self.COURSEDATA.items():
@@ -515,7 +514,7 @@ class HandleLoad():
             provider_id = ''
             if provider_name.lower() in self.PROVIDERDATA:
                 new_provider = False
-                provider_id = self.PROVIDERDATA[provider_name]['ID']
+                provider_id = self.PROVIDERDATA[provider_name.lower()]['ID']
             else:
                 new_provider = True
 
@@ -529,10 +528,10 @@ class HandleLoad():
             # data.
 
             if item['training_name'].lower() in self.COURSEDATA:
-                DATA = self.COURSEDATA[item['training_name']]
+                DATA = self.COURSEDATA[item['training_name'].lower()]
 
                 # Remove the old, duplicated course (using its GLOBALURN) from the COURSEPROVIDER dictionary.
-                self.COURSEPROVIDER.pop(self.COURSEDATA[item['training_name']]['ID'], None)
+                self.COURSEPROVIDER.pop(self.COURSEDATA[item['training_name'].lower()]['ID'], None)
 
             # Create the new record
             else:
@@ -576,13 +575,13 @@ class HandleLoad():
                 ProviderRecord['Name'] = item['site_name']
                 provider_id = ProviderRecord['ID']
 
-                self.PROVIDERDATA[provider_name] = ProviderRecord
+                self.PROVIDERDATA[provider_name.lower()] = ProviderRecord
 
             # Add this course to the map of courses associated with the provider.
             self.COURSEPROVIDER[myGLOBALURN] = provider_name
 
             DATA['ProviderID'] = provider_id
-            self.COURSEDATA[item['training_name']] = DATA
+            self.COURSEDATA[item['training_name'].lower()] = DATA
 
         return(True, '')
 
@@ -654,7 +653,7 @@ class HandleLoad():
                 return(False, msg)
 
             # Flag that the associated course is used by this session.
-            self.COURSEDATA[session_name]['class_used'] = True
+            self.COURSEDATA[session_name.lower()]['class_used'] = True
 
             # Set the relationship between the training class and the training class session.
             myNEWRELATIONS = {} # The new relations for this item, key=related ID, value=relation type
@@ -686,7 +685,7 @@ class HandleLoad():
 
         # Loop through self.COURSEPROVIDER and flag that the provider is used in PROVIDERDATA.
         for course_urn, provider_name in self.COURSEPROVIDER.items():
-            self.PROVIDERDATA[provider_name]['is_used'] = True
+            self.PROVIDERDATA[provider_name.lower()]['is_used'] = True
 
         # Loop through self.PROVIDERDATA which contains the list of providers found in the courses.
         for provider_name, item in self.PROVIDERDATA.items():
