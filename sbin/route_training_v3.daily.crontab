@@ -1,0 +1,1 @@
+0          5       * * * /bin/bash -l -c "/soft/warehouse-apps-1.0/Manage-Training-V3/PROD/sbin/route_training.sh start --ignore_dates"
