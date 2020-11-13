@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ### BEGIN INIT INFO
-# Provides:          route_training_v3
+# Provides:          route_training
 # Required-Start:    $remote_fs $syslog
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
@@ -11,7 +11,7 @@
 ### END INIT INFO
 
 ####### Customizations START #######
-APP_NAME=route_training_v3
+APP_NAME=route_training
 APP_BASE=/soft/warehouse-apps-1.0/Manage-Training-V3
 WAREHOUSE_BASE=/soft/warehouse-1.0
 # Override in shell environment
