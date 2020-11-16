@@ -480,8 +480,8 @@ class HandleLoad():
                             Audience = self.Affiliation,
                     )
                 resource.save()
-                # DEBUG
-                # resource.indexing()
+                if self.ESEARCH:
+                    resource.indexing()
             except Exception as e:
                 msg = '{} saving ID={}: {}'.format(type(e).__name__, DATA['ID'], e)
                 self.logger.error(msg)
@@ -645,8 +645,8 @@ class HandleLoad():
                             EndDateTime = item['end_date'],
                      )
                 resource.save()
-                # DEBUG
-                # resource.indexing()
+                if self.ESEARCH:
+                    resource.indexing()
             except Exception as e:
                 msg = '{} saving ID={}: {}'.format(type(e).__name__, myGLOBALURN, e)
                 self.logger.error(msg)
@@ -729,8 +729,8 @@ class HandleLoad():
                             Audience = self.Affiliation,
                      )
                 resource.save()
-                # DEBUG
-                # resource.indexing()
+                if self.ESEARCH:
+                    resource.indexing()
             except Exception as e:
                 msg = '{} saving ID={}: {}'.format(type(e).__name__, item['ID'], e)
                 self.logger.error(msg)
