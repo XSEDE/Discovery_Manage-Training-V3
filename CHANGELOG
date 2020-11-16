@@ -1,3 +1,6 @@
+tag-0.0-20201116 JP
+  - Re-enable ES indexing()
+
 tag-0.0-20201113 JP
   - Improve conf/ *bin/ file names and contents to better support prodution and (mac) development environments
 
