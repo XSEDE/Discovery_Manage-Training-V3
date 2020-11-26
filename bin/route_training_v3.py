@@ -73,8 +73,8 @@ class HandleLoad():
                             help='Ignore dates and force full resource refresh')
         parser.add_argument('-l', '--log', action='store', \
                             help='Logging level override to config (default=warning)')
-        parser.add_argument('-c', '--config', action='store', default='./route_training.conf', \
-                            help='Configuration file default=./route_training.conf')
+        parser.add_argument('-c', '--config', action='store', default='./route_training_v3.conf', \
+                            help='Configuration file default=./route_training_v3.conf')
         parser.add_argument('--verbose', action='store_true', \
                             help='Verbose output')
         parser.add_argument('--dev', action='store_true', \
