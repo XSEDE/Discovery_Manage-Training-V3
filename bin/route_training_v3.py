@@ -318,7 +318,6 @@ class HandleLoad():
         for relatedID in newRELATIONS:
             try:
                 relationURN = ':'.join([myURN, md5(relatedID.encode('UTF-8')).hexdigest()])
-                self.logger.info('myURN: {}, relatedID: {}, Relation: {}'.format(myURN,relatedID,newRELATIONS[relatedID]))
                 relation = ResourceV3Relation(
                             ID = relationURN,
                             FirstResourceID = myURN,
@@ -394,6 +393,9 @@ class HandleLoad():
                 DATA['ID'] = myGLOBALURN
                 DATA['EntityJSON'] = json.dumps(item, cls=MissingTypeEncoder)
 
+            # All unique spreadsheet course data will be stored in the warehouse.
+            DATA['store_to_warehouse'] = True
+
             DATA['LocalID'] = item['id']
             DATA['LocalType'] = contype
             DATA['Name'] = item['title']
@@ -444,6 +446,9 @@ class HandleLoad():
         # Store the merged list of spreadsheet and portal classes in the warehouse.
         for course_name, DATA in self.COURSEDATA.items():
 
+            if DATA['store_to_warehouse'] == False:
+                continue
+
             try:
                 local = ResourceV3Local(
                             ID = DATA['ID'],
@@ -457,7 +462,7 @@ class HandleLoad():
                     )
                 local.save()
             except Exception as e:
-                msg = '{} saving local ID={}: {}'.format(type(e).__name__, DATA['ID'], e)
+                msg = '{} saving Training Class local ID={}: {}'.format(type(e).__name__, DATA['ID'], e)
                 self.logger.error(msg)
                 return(False, msg)
 
@@ -509,7 +514,6 @@ class HandleLoad():
         new_provider = False
 
         for item in content[contype]:
-
             provider_name = item['site_name']
             provider_id = ''
             if provider_name.lower() in self.PROVIDERDATA:
@@ -537,20 +541,31 @@ class HandleLoad():
             else:
                 DATA = {}
 
+            # If the category_id is None then this course is not displayed on the "Portal-Online Training"
+            # page. It needs to be found in the query so that its data can be used by a child
+            # training_class_session but it should not be written to the warehouse.
+            if (item['category_id'] == None):
+                DATA['store_to_warehouse'] = False
+            else:
+                DATA['store_to_warehouse'] = True
+            
             DATA['ID'] = myGLOBALURN
             DATA['LocalID'] = id_str
             DATA['LocalType'] = contype
             DATA['EntityJSON'] = json.dumps(item, cls=MissingTypeEncoder)
             DATA['Name'] = item['training_name']
 
-            if item['training_type'] == 'IN-PERSON':
+            if item['training_type'] == 'IN_PERSON':
                 DATA['ResourceGroup'] = 'Live Event'
             elif item['training_type'] == 'ONLINE_TRAINING' or item['training_type'] == 'WEBCAST':
-                DATA['ResourceGroup'] = 'Streamed Event'
+                DATA['ResourceGroup'] = 'Streamed Events'
+            elif item['training_url'] != None:
+                DATA['ResourceGroup'] = 'Streamed Events'
             else:
+                self.logger.info('{} ResourceGroup set to None'.format(DATA['ID']))
                 DATA['ResourceGroup'] = 'None'
 
-            DATA['ShortDescription'] = None
+            DATA['ShortDescription'] = DATA['Name']
             DATA['Description'] = item['training_summary']
             DATA['Topics'] = None
             DATA['Keywords'] = None
@@ -588,7 +603,7 @@ class HandleLoad():
     def Warehouse_XDCDB_Training_Class_Session(self, content, contype, config):
         start_utc = datetime.now(timezone.utc)
         myRESGROUP = 'Live'
-        myRESTYPE = 'TrainingSession'
+        myRESTYPE = 'Training Session'
         me = '{} to {}({}:{})'.format(sys._getframe().f_code.co_name, self.WAREHOUSE_CATALOG, myRESGROUP, myRESTYPE)
         self.PROCESSING_SECONDS[me] = getattr(self.PROCESSING_SECONDS, me, 0)
 
@@ -618,7 +633,7 @@ class HandleLoad():
                     )
                 local.save()
             except Exception as e:
-                msg = '{} saving local ID={}: {}'.format(type(e).__name__, myGLOBALURN, e)
+                msg = '{} saving Training Session local ID={}: {}'.format(type(e).__name__, myGLOBALURN, e)
                 self.logger.error(msg)
                 return(False, msg)
             new[myGLOBALURN] = local
@@ -707,7 +722,7 @@ class HandleLoad():
                     )
                 local.save()
             except Exception as e:
-                msg = '{} saving local ID={}: {}'.format(type(e).__name__, item['ID'], e)
+                msg = '{} saving Provider local ID={}: {}'.format(type(e).__name__, item['ID'], e)
                 self.logger.error(msg)
                 return(False, msg)
             new[item['ID']] = local
@@ -721,7 +736,7 @@ class HandleLoad():
                             Name = item['Name'],
                             ResourceGroup = myRESGROUP,
                             Type = myRESTYPE,
-                            ShortDescription = None,
+                            ShortDescription = item['Name'],
                             ProviderID = None,
                             Description = None,
                             Topics = None,

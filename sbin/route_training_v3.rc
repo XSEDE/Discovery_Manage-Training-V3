@@ -13,7 +13,7 @@
 # Change these lines to suit where you install your script and what you want to call it
 DAEMON_NAME=route_training_v3
 APP_BASE=/soft/warehouse-apps-1.0/Manage-Training-V3
-APP_SOURCE=${APP_BASE}/PROD
+APP_SOURCE=${APP_BASE}/DEV
 WAREHOUSE_SOURCE=/soft/warehouse-1.0/PROD
 DAEMON_BIN=${APP_SOURCE}/bin/${DAEMON_NAME}.py
 DAEMON_LOG=/soft/warehouse-apps-1.0/Manage-Training-V3/var/${DAEMON_NAME}.daemon.log
