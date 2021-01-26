@@ -1,2 +1,11 @@
-tag-0.1-20201005 JP
+tag-0.0-20201126 JP
+  - Name files consistently route_training_v3
+
+tag-0.0-20201116 JP
+  - Re-enable ES indexing()
+
+tag-0.0-20201113 JP
+  - Improve conf/ *bin/ file names and contents to better support prodution and (mac) development environments
+
+tag-0.0-20201005 JP
   - Merge latest router structure with Peter's first check-in
