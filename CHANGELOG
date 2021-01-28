@@ -1,3 +1,10 @@
+tag-0.1-20210127 PE
+  - Changed portal query to return all training information but flag which ones are displayed in the portal. Only those are stored in the warehouse.
+        Added bin/README file with the updated query to be stored in the warehouse catalog table.
+  - Set the short description to be the name of the training
+  - Set resource type to "Training Session" instead of "TrainingSession"
+  - Set ResourceGroup to "Streamed Events" if no training_type is specified but a training_url is specified.
+
 tag-0.0-20201126 JP
   - Name files consistently route_training_v3
 
