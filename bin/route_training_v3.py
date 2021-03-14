@@ -29,6 +29,7 @@ import django
 django.setup()
 from django.forms.models import model_to_dict
 from django.utils.dateparse import parse_datetime
+from django_markup.markup import formatter
 from resource_v3.models import *
 from processing_status.process import ProcessingActivity
 
@@ -61,6 +62,39 @@ class MissingTypeEncoder(json.JSONEncoder):
             return {'__String__': obj.timestamp()}
         # Let the base class default method raise the TypeError
         return json.JSONEncoder.default(self, obj)
+
+class Format_Description():
+#   Initialize a Description, smart append, and render it in html using django-markup
+    def __init__(self, initial=None):
+        self.markup_stream = io.StringIO()
+        # Docutils settings
+        self.markup_settings = {'warning_stream': self.markup_stream }
+        if initial is None:
+            self.value = None
+        else:
+            clean_initial = initial.rstrip()
+            self.value = clean_initial if len(clean_initial) > 0 else None
+    def blank_line(self): # Forced blank line used to start a markup list
+        self.value += '\n'
+    def append(self, value):
+        clean_value = value.rstrip()
+        if len(clean_value) > 0:
+            if self.value is None:
+                self.value = clean_value
+            else:
+                self.value += '\n{}'.format(clean_value)
+    def html(self, ID=None): # If an ID is provided, log it to record what resource had the warnings
+        if self.value is None:
+            return(None)
+        output = formatter(self.value, filter_name='restructuredtext', settings_overrides=self.markup_settings)
+        warnings = self.markup_stream.getvalue()
+        if warnings:
+            logger = logging.getLogger('DaemonLog')
+            if ID:
+                logger.warning('markup warnings for ID: {}'.format(ID))
+            for line in warnings.splitlines():
+                logger.warning('markup: {}'.format(line))
+        return(output)
 
 class HandleLoad():
     def __init__(self):
@@ -566,10 +600,25 @@ class HandleLoad():
                 DATA['ResourceGroup'] = 'None'
 
             DATA['ShortDescription'] = DATA['Name']
-            DATA['Description'] = item['training_summary']
             DATA['Topics'] = None
             DATA['Keywords'] = None
             DATA['class_used'] = False
+
+            if item['training_summary'] == None or item['training_summary'] == '':
+                Description = Format_Description(item['training_name'])
+            else:
+                Description = Format_Description(item['training_summary'])
+
+            if item['training_url'] != None:
+                Description.blank_line()
+                Description.append('Related resources:')
+                Description.blank_line()
+                Description.append('- Training URL: {}'.format(item['training_url']))
+
+            Description.blank_line()
+            Description.append('XSEDE Training Information: https://www.xsede.org/for-users/training')
+
+            DATA['Description'] = Description.html()
 
             # Save the course information so it can be looked up later by the training class session.
             course_info = {}

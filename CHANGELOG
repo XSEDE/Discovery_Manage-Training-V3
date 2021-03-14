@@ -1,3 +1,6 @@
+tag-0.0-20210313 PE
+  - Add more information to the course descriptions and format in HTML.
+
 tag-0.1-20210127 PE
   - Changed portal query to return all training information but flag which ones are displayed in the portal. Only those are stored in the warehouse.
         Added bin/README file with the updated query to be stored in the warehouse catalog table.
