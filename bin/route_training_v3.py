@@ -401,7 +401,7 @@ class HandleLoad():
             else:
                 new_provider = True
 
-            myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'xsede.org', 'resource', 'google_spreadsheet_training', str(item['id']))
+            myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'google_spreadsheet', str(item['id']))
 
 
             if item['title'].lower() in self.COURSEDATA:
@@ -434,14 +434,28 @@ class HandleLoad():
             DATA['LocalType'] = contype
             DATA['Name'] = item['title']
             DATA['ShortDescription'] = item['title'] + ", Length: " + item['length']
-            DATA['Description'] = item['description']
+
+            # DATA['Description'] = item['description']
+            Description = Format_Description(item['description'])
+
+            if item['url'] != None:
+                Description.blank_line()
+                Description.append('Related resources:')
+                Description.blank_line()
+                Description.append('- Training URL: {}'.format(item['url']))
+
+            Description.blank_line()
+            Description.append('XSEDE Training Information: https://www.xsede.org/for-users/training')
+
+            DATA['Description'] = Description.html()
+
             DATA['Topics'] = item['category']
             DATA['Keywords'] = item['level'] + ", " + item['subcategory']
 
             # Add a record for the new provider.
             if new_provider:
                 ProviderRecord = {}
-                ProviderRecord['ID'] = self.format_GLOBALURN(self.URNPrefix, 'xsede.org', 'provider', str(item['id']))
+                ProviderRecord['ID'] = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'training', 'organization', str(item['id']))
                 provider_id = ProviderRecord['ID']
                 ProviderRecord['LocalID'] = item['id']
                 ProviderRecord['EntityJSON'] = json.dumps(item['center'])
@@ -558,7 +572,7 @@ class HandleLoad():
 
             id_str = str(item['id'])       # From number
             # myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'xsede.org', contype, id_str)
-            myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'xsede.org', 'resource', 'xdcdb_training', id_str)
+            myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'xdcdb_session', str(item['id']))
 
             # The query for the training_class data orders the records by the creation date so just store
             # each record by its training_name in COURSEDATA as it is found and the most recent duplicate
@@ -599,7 +613,7 @@ class HandleLoad():
                 self.logger.info('{} ResourceGroup set to None'.format(DATA['ID']))
                 DATA['ResourceGroup'] = 'None'
 
-            DATA['ShortDescription'] = DATA['Name']
+            DATA['ShortDescription'] = None
             DATA['Topics'] = None
             DATA['Keywords'] = None
             DATA['class_used'] = False
@@ -608,6 +622,10 @@ class HandleLoad():
                 Description = Format_Description(item['training_name'])
             else:
                 Description = Format_Description(item['training_summary'])
+
+            if item['contact_email'] != None:
+                Description.blank_line()
+                Description.append('- Contact email: {}'.format(item['contact_email']))
 
             if item['training_url'] != None:
                 Description.blank_line()
@@ -633,7 +651,7 @@ class HandleLoad():
             # Add a record for the new provider.
             if new_provider:
                 ProviderRecord = {}
-                ProviderRecord['ID'] = self.format_GLOBALURN(self.URNPrefix, 'xsede.org', 'provider', id_str)
+                ProviderRecord['ID'] = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'training', 'organization', id_str)
                 ProviderRecord['LocalID'] = item['id']
                 ProviderRecord['EntityJSON'] = json.dumps(item['site_name'], cls=MissingTypeEncoder)
                 ProviderRecord['Name'] = item['site_name']
@@ -721,7 +739,7 @@ class HandleLoad():
 
             # Set the relationship between the training class and the training class session.
             myNEWRELATIONS = {} # The new relations for this item, key=related ID, value=relation type
-            parentURN = self.format_GLOBALURN(self.URNPrefix, 'xsede.org', 'resource', 'xdcdb_training', str(item['training_class_id']))
+            parentURN = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'xdcdb_session', str(item['id']))
             myNEWRELATIONS[parentURN] = 'Live Session'
             self.Update_REL(myGLOBALURN, myNEWRELATIONS)
 
@@ -737,7 +755,7 @@ class HandleLoad():
     def Store_Providers(self):
         start_utc = datetime.now(timezone.utc)
         myRESGROUP = 'Organizations'
-        myRESTYPE = 'Provider'
+        myRESTYPE = 'TrainingProvider'
         contype = 'provider'
         me = '{} to {}({}:{})'.format(sys._getframe().f_code.co_name, self.WAREHOUSE_CATALOG, myRESGROUP, myRESTYPE)
         self.PROCESSING_SECONDS[me] = getattr(self.PROCESSING_SECONDS, me, 0)
