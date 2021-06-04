@@ -18,6 +18,7 @@ import shutil
 import signal
 import sys
 from urllib.parse import urlparse
+from fuzzywuzzy import process
 import urllib.request
 import csv
 import io
@@ -134,6 +135,9 @@ class HandleLoad():
             print('Error "{}" parsing config={}'.format(e, config_path))
             sys.exit(1)
 
+        # Initialize the cutoff level for the fuzzy match algoritm for matching provider names.
+        self.FUZZY_SCORE_CUTOFF = int(self.config.get('FUZZY_SCORE_CUTOFF', 90))
+
         # Initialize logging from arguments, or config file, or default to WARNING as last resort
         loglevel_str = (self.args.log or self.config.get('LOG_LEVEL', 'WARNING')).upper()
         loglevel_num = getattr(logging, loglevel_str, None)
@@ -200,19 +204,15 @@ class HandleLoad():
 
         self.DefaultValidity = timedelta(days = 14)
 
+        # Map stored by Warehouse provider name contains provider URNs.
+        self.PROVIDERS = {}
+
         # Map stored by class title used to merge class information from the spreadsheet
         # and the portal table. Allow case insensitive searches of keys.
         self.COURSEDATA = {}
 
         # Map portal class information by class_id so class_sessions can find it later.
         self.COURSEINFO = {}
-
-        # Store a map of provider data from all of the sources. Allow case insensitive
-        # searches of keys.
-        self.PROVIDERDATA = {}
-
-        # Store a map of provider data from all of the sources
-        self.COURSEPROVIDER = {}
 
         # Steps are in the conf/route_* configuration file.
         self.STEPS = []
@@ -388,27 +388,16 @@ class HandleLoad():
         for item in ResourceV3Local.objects.filter(Affiliation__exact = self.Affiliation).filter(LocalType__exact = 'XDCDBTraining'):
             cur[item.ID] = item
 
-        new_provider = False
-
         # Merge the spreadsheet course information with the portal data already stored in a map by course title.
         for key, item in content[contype].items():
 
-            provider_name = item['center']
-            provider_id = ''
-            if provider_name.lower() in self.PROVIDERDATA:
-                new_provider = False
-                provider_id = self.PROVIDERDATA[provider_name.lower()]['ID']
-            else:
-                new_provider = True
+            provider_id = self.Find_Provider(item['center'])
 
             myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'google_spreadsheet', str(item['id']))
 
 
             if item['title'].lower() in self.COURSEDATA:
                 DATA = self.COURSEDATA[item['title'].lower()]
-
-                # Remove the old course (using its GLOBALRUN) from its provider record.
-                self.COURSEPROVIDER.pop(self.COURSEDATA[item['title'].lower()]['ID'], None)
 
                 # If the training class is used by a training_class_session,
                 # Use myGLOBALURN, LocalID from the Portal database for merged data.
@@ -444,6 +433,10 @@ class HandleLoad():
                 Description.blank_line()
                 Description.append('- Training URL: {}'.format(item['url']))
 
+            if provider_id == None:
+                Description.blank_line()
+                Description.append('- Provider: {}'.format(item['center']))
+
             Description.blank_line()
             Description.append('XSEDE Training Information: https://www.xsede.org/for-users/training')
 
@@ -451,20 +444,6 @@ class HandleLoad():
 
             DATA['Topics'] = item['category']
             DATA['Keywords'] = item['level'] + ", " + item['subcategory']
-
-            # Add a record for the new provider.
-            if new_provider:
-                ProviderRecord = {}
-                ProviderRecord['ID'] = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'training', 'organization', str(item['id']))
-                provider_id = ProviderRecord['ID']
-                ProviderRecord['LocalID'] = item['id']
-                ProviderRecord['EntityJSON'] = json.dumps(item['center'])
-                ProviderRecord['Name'] = item['center']
-
-                self.PROVIDERDATA[provider_name.lower()] = ProviderRecord
-
-            # Add this course to the map of courses associated with the provider.
-            self.COURSEPROVIDER[myGLOBALURN] = provider_name
 
             DATA['ProviderID'] = provider_id
 
@@ -541,10 +520,6 @@ class HandleLoad():
                 return(False, msg)
 
             self.STATS.update({me + '.Update'})
-            self.logger.debug('Provider save ID={}'.format(DATA['ID']))
-
-        # Update the provider data in the Warehouse used in the courses.
-        self.Store_Providers()
 
         self.Delete_OLD(me, cur, new)
 
@@ -559,16 +534,8 @@ class HandleLoad():
         me = '{} to {}({}:{})'.format(sys._getframe().f_code.co_name, self.WAREHOUSE_CATALOG, myRESGROUP, myRESTYPE)
         self.PROCESSING_SECONDS[me] = getattr(self.PROCESSING_SECONDS, me, 0)
 
-        new_provider = False
-
         for item in content[contype]:
-            provider_name = item['site_name']
-            provider_id = ''
-            if provider_name.lower() in self.PROVIDERDATA:
-                new_provider = False
-                provider_id = self.PROVIDERDATA[provider_name.lower()]['ID']
-            else:
-                new_provider = True
+            provider_id = self.Find_Provider(item['site_name'])
 
             id_str = str(item['id'])       # From number
             # myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'xsede.org', contype, id_str)
@@ -581,9 +548,6 @@ class HandleLoad():
 
             if item['training_name'].lower() in self.COURSEDATA:
                 DATA = self.COURSEDATA[item['training_name'].lower()]
-
-                # Remove the old, duplicated course (using its GLOBALURN) from the COURSEPROVIDER dictionary.
-                self.COURSEPROVIDER.pop(self.COURSEDATA[item['training_name'].lower()]['ID'], None)
 
             # Create the new record
             else:
@@ -633,6 +597,10 @@ class HandleLoad():
                 Description.blank_line()
                 Description.append('- Training URL: {}'.format(item['training_url']))
 
+            if provider_id == None:
+                Description.blank_line()
+                Description.append('- Provider: {}'.format(item['site_name']))
+
             Description.blank_line()
             Description.append('XSEDE Training Information: https://www.xsede.org/for-users/training')
 
@@ -647,20 +615,6 @@ class HandleLoad():
             course_info['Keywords'] = DATA['Keywords']
             course_info['EntityJSON'] = DATA['EntityJSON']
             self.COURSEINFO[item['id']] = course_info
-
-            # Add a record for the new provider.
-            if new_provider:
-                ProviderRecord = {}
-                ProviderRecord['ID'] = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'training', 'organization', id_str)
-                ProviderRecord['LocalID'] = item['id']
-                ProviderRecord['EntityJSON'] = json.dumps(item['site_name'], cls=MissingTypeEncoder)
-                ProviderRecord['Name'] = item['site_name']
-                provider_id = ProviderRecord['ID']
-
-                self.PROVIDERDATA[provider_name.lower()] = ProviderRecord
-
-            # Add this course to the map of courses associated with the provider.
-            self.COURSEPROVIDER[myGLOBALURN] = provider_name
 
             DATA['ProviderID'] = provider_id
             self.COURSEDATA[item['training_name'].lower()] = DATA
@@ -744,7 +698,6 @@ class HandleLoad():
             self.Update_REL(myGLOBALURN, myNEWRELATIONS)
 
             self.STATS.update({me + '.Update'})
-            self.logger.debug('Provider save ID={}'.format(myGLOBALURN))
 
         self.Delete_OLD(me, cur, new)
 
@@ -752,88 +705,36 @@ class HandleLoad():
         self.log_target(me)
         return(True, '')
 
-    def Store_Providers(self):
-        start_utc = datetime.now(timezone.utc)
-        myRESGROUP = 'Organizations'
-        myRESTYPE = 'TrainingProvider'
-        contype = 'provider'
-        me = '{} to {}({}:{})'.format(sys._getframe().f_code.co_name, self.WAREHOUSE_CATALOG, myRESGROUP, myRESTYPE)
-        self.PROCESSING_SECONDS[me] = getattr(self.PROCESSING_SECONDS, me, 0)
+    def Read_Providers(self):
 
-        cur = {}   # Current items in database
-        new = {}   # New/updated items
-        for item in ResourceV3Local.objects.filter(Affiliation__exact = self.Affiliation).filter(LocalType__exact = contype):
-            cur[item.ID] = item
+        # Store the provider names in lower case
+        for record in ResourceV3.objects.filter(Type__exact = 'Provider'):
 
-        # Loop through self.COURSEPROVIDER and flag that the provider is used in PROVIDERDATA.
-        for course_urn, provider_name in self.COURSEPROVIDER.items():
-            self.PROVIDERDATA[provider_name.lower()]['is_used'] = True
+            provider_name = record.Name.lower()
+            if (provider_name in self.PROVIDERS):
+                self.logger.info('Duplicate provider name found in the Warehouse: {}'.format(provider_name))
+            else:
+                self.PROVIDERS[provider_name] = record.ID
 
-        # Loop through self.PROVIDERDATA which contains the list of providers found in the courses.
-        for provider_name, item in self.PROVIDERDATA.items():
+    def Find_Provider(self, provider_name):
 
-            # If the provider is not used by any of the saved courses, skip it.
-            if 'is_used' not in item or item['is_used'] == False:
-                continue
+        provider_id = None
 
-            try:
-                local = ResourceV3Local(
-                            ID = item['ID'],
-                            CreationTime = datetime.now(timezone.utc),
-                            Validity = self.DefaultValidity,
-                            Affiliation = self.Affiliation,
-                            LocalID = item['LocalID'],
-                            LocalType = contype,
-                            LocalURL = self.config.get('SOURCEDEFAULTURL', None),
-                            EntityJSON = item['EntityJSON'],
-                    )
-                local.save()
-            except Exception as e:
-                msg = '{} saving Provider local ID={}: {}'.format(type(e).__name__, item['ID'], e)
-                self.logger.error(msg)
-                return(False, msg)
-            new[item['ID']] = local
+        if (provider_name.lower() in self.PROVIDERS):
+            provider_id = self.PROVIDERS[provider_name.lower()]
 
-            try:
-                resource = ResourceV3(
-                            ID = item['ID'],
-                            Affiliation = self.Affiliation,
-                            LocalID = item['LocalID'],
-                            QualityLevel = 'Production',
-                            Name = item['Name'],
-                            ResourceGroup = myRESGROUP,
-                            Type = myRESTYPE,
-                            ShortDescription = item['Name'],
-                            ProviderID = None,
-                            Description = None,
-                            Topics = None,
-                            Keywords = None,
-                            Audience = self.Affiliation,
-                     )
-                resource.save()
-                if self.ESEARCH:
-                    resource.indexing()
-            except Exception as e:
-                msg = '{} saving ID={}: {}'.format(type(e).__name__, item['ID'], e)
-                self.logger.error(msg)
-                return(False, msg)
+        # Perform a fuzzy match of the provider name if an exact match isn't found.
+        else:
+            (match_name, score) = process.extractOne(provider_name.lower(), self.PROVIDERS.keys())
 
-            # Find all of the courses that use this provider.
-            myNEWRELATIONS = {} # The new relations for this item, key=related ID, value=relation type
-            for courseURN, provider_name in self.COURSEPROVIDER.items():
-                if provider_name == item['Name']:
-                    myNEWRELATIONS[courseURN] = 'Provided By'
+            if (score > self.FUZZY_SCORE_CUTOFF):
+                self.logger.info('Using fuzzy match of {} to {} with score {} cutoff {}'.format(provider_name, match_name, score, self.FUZZY_SCORE_CUTOFF))
+                provider_id = self.PROVIDERS[match_name]
+                
+            else:
+                self.logger.info('Provider name not found in the Warehouse: {}'.format(provider_name))
 
-            self.Update_REL(item['ID'], myNEWRELATIONS)
-
-            self.STATS.update({me + '.Update'})
-            self.logger.debug('Provider save ID={}'.format(item['ID']))
-
-        self.Delete_OLD(me, cur, new)
-
-        self.PROCESSING_SECONDS[me] += (datetime.now(timezone.utc) - start_utc).total_seconds()
-        self.log_target(me)
-        return(True, '')
+        return(provider_id)
 
     def SaveDaemonLog(self, path):
         # Save daemon log file using timestamp only if it has anything unexpected in it
@@ -859,6 +760,7 @@ class HandleLoad():
                 CURSOR = self.Connect_Source(self.SOURCE_PARSE)
             self.Connect_Elastic()
             self.STATS = Counter()
+            self.Read_Providers()
             self.PROCESSING_SECONDS = {}
 
             for stepconf in self.STEPS:
