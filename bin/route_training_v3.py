@@ -774,7 +774,7 @@ class HandleLoad():
             self.logger.error('Exiting with rc={}'.format(rc))
         sys.exit(rc)
 
-    def run(self):
+    def Run(self):
         while True:
             if self.SOURCE_PARSE.scheme == 'postgresql':
                 CURSOR = self.Connect_Source(self.SOURCE_PARSE)
