@@ -24,8 +24,8 @@ import urllib.request
 import csv
 import io
 import pytz
-Central = pytz.timezone('US/Central')
-UTC = pytz.timezone('UTC')
+Central_TZ = pytz.timezone('US/Central')
+UTC_TZ = pytz.timezone('UTC')
 
 import django
 django.setup()
@@ -51,9 +51,9 @@ def datetime_localparse(indate):
         return(indate)
 
 def datetime_standardize(indate):
-    # Localize as Central and convert to UTC
+    # Localize as Central and convert to UTC_TZ
     if isinstance(indate, datetime):
-        return(Central.localize(indate).astimezone(tz = UTC))
+        return(Central_TZ.localize(indate).astimezone(tz = UTC_TZ))
     else:
         return(indate)
 
@@ -639,7 +639,7 @@ class HandleLoad():
     def Warehouse_XDCDB_Training_Class_Session(self, content, contype, config):
         start_utc = datetime.now(timezone.utc)
         myRESGROUP = 'Live'
-        myRESTYPE = 'Training Session'
+        myRESTYPE = 'Training'
         me = '{} to {}({}:{})'.format(sys._getframe().f_code.co_name, self.WAREHOUSE_CATALOG, myRESGROUP, myRESTYPE)
         self.PROCESSING_SECONDS[me] = getattr(self.PROCESSING_SECONDS, me, 0)
 
@@ -668,7 +668,7 @@ class HandleLoad():
                     )
                 local.save()
             except Exception as e:
-                msg = '{} saving Training Session local ID={}: {}'.format(type(e).__name__, myGLOBALURN, e)
+                msg = '{} saving XDCDB Training Session local ID={}: {}'.format(type(e).__name__, myGLOBALURN, e)
                 self.logger.error(msg)
                 return(False, msg)
             new[myGLOBALURN] = local
