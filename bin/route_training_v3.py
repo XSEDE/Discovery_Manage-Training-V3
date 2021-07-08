@@ -540,7 +540,7 @@ class HandleLoad():
             provider_id = self.Find_Provider(item['site_name'])
 
             id_str = str(item['id'])       # From number
-            # myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'xsede.org', contype, id_str)
+            # myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', contype, id_str)
             myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'xdcdb_session', str(item['id']))
 
             # The query for the training_class data orders the records by the creation date so just store
@@ -638,7 +638,7 @@ class HandleLoad():
         for item in content[contype]:
             id_str = str(item['id'])       # From number
             parent_id = item['training_class_id'] # parent class id
-            myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'xsede.org', 'resource', 'xdcdb_training_class', id_str)
+            myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'xdcdb_training_class', id_str)
 
             try:
                 local = ResourceV3Local(
