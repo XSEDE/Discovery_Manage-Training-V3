@@ -231,6 +231,9 @@ class HandleLoad():
         # Map portal class information by class_id so class_sessions can find it later.
         self.COURSEINFO = {}
 
+        # Providers not found
+        self.NOTPROVIDER = {}
+
         # Steps are in the conf/route_* configuration file.
         self.STEPS = []
         for stepconf in self.config['STEPS']:
@@ -592,7 +595,7 @@ class HandleLoad():
                 self.logger.info('{} ResourceGroup set to None'.format(DATA['ID']))
                 DATA['ResourceGroup'] = 'None'
 
-            DATA['ShortDescription'] = None
+            DATA['ShortDescription'] = item['training_name']
             DATA['Topics'] = None
             DATA['Keywords'] = None
             DATA['class_used'] = False
@@ -685,7 +688,7 @@ class HandleLoad():
                             Name = session_name,
                             ResourceGroup = self.COURSEINFO[parent_id]['ResourceGroup'],
                             Type = myRESTYPE,
-                            ShortDescription = item['location_name'],
+                            ShortDescription = session_name,
                             ProviderID = None,
                             Description = self.COURSEINFO[parent_id]['Description'],
                             Topics = self.COURSEINFO[parent_id]['Topics'],
@@ -742,9 +745,8 @@ class HandleLoad():
             if (score > self.FUZZY_SCORE_CUTOFF):
                 self.logger.debug('Using fuzzy match of {} to {} with score {} cutoff {}'.format(provider_name, match_name, score, self.FUZZY_SCORE_CUTOFF))
                 provider_id = self.PROVIDERS[match_name]
-                
             else:
-                self.logger.info('Provider name not found in the Warehouse: {}'.format(provider_name))
+                self.NOTPROVIDER[provider_name] = self.NOTPROVIDER.get(provider_name, 0) + 1
 
         return(provider_id)
 
@@ -825,6 +827,10 @@ class HandleLoad():
             # Not disconnecting from Elasticsearch
             self.Disconnect_Source(CURSOR)
             break
+
+        # Print out all the providers that weren't found and how many times they were used (more useful than logging each)
+        for provider in self.NOTPROVIDER:
+            self.logger.info('Provider name not found {} (used: {})'.format(provider, self.NOTPROVIDER[provider]))
 
     def log_target(self, me):
         summary_msg = 'Processed {} in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format(me,
