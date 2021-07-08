@@ -485,6 +485,8 @@ class HandleLoad():
                             LocalID = DATA['LocalID'],
                             LocalType = DATA['LocalType'],
                             LocalURL = config.get('SOURCEDEFAULTURL', None),
+                            CatalogMetaURL = self.CATALOGURN_to_URL(config['CATALOGURN']),
+                            # Store the item's information appended to its parent's JSON information.
                             EntityJSON = DATA['EntityJSON'],
                     )
                 local.save()
@@ -648,7 +650,6 @@ class HandleLoad():
                             LocalType = contype,
                             LocalURL = config.get('SOURCEDEFAULTURL', None),
                             CatalogMetaURL = self.CATALOGURN_to_URL(config['CATALOGURN']),
-
                             # Store the item's information appended to its parent's JSON information.
                             EntityJSON = self.COURSEINFO[parent_id]['EntityJSON'] + json.dumps(item, cls=MissingTypeEncoder)
                     )
