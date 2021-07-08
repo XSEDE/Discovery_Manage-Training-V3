@@ -97,9 +97,9 @@ class Format_Description():
         if warnings:
             logger = logging.getLogger('DaemonLog')
             if ID:
-                logger.warning('markup warnings for ID: {}'.format(ID))
+                logger.debug('markup warnings for ID: {}'.format(ID))
             for line in warnings.splitlines():
-                logger.warning('markup: {}'.format(line))
+                logger.debug('markup: {}'.format(line))
         return(output)
 
 class HandleLoad():
@@ -720,9 +720,8 @@ class HandleLoad():
         return(True, '')
 
     def Read_Providers(self):
-
         # Store the provider names in lower case
-        for record in ResourceV3.objects.filter(Type__exact = 'Provider'):
+        for record in ResourceV3.objects.filter(Affiliation__exact=self.Affiliation).filter(Type__exact = 'Provider'):
 
             provider_name = record.Name.lower()
             if (provider_name in self.PROVIDERS):
@@ -741,7 +740,7 @@ class HandleLoad():
             (match_name, score) = process.extractOne(provider_name.lower(), self.PROVIDERS.keys())
 
             if (score > self.FUZZY_SCORE_CUTOFF):
-                self.logger.info('Using fuzzy match of {} to {} with score {} cutoff {}'.format(provider_name, match_name, score, self.FUZZY_SCORE_CUTOFF))
+                self.logger.debug('Using fuzzy match of {} to {} with score {} cutoff {}'.format(provider_name, match_name, score, self.FUZZY_SCORE_CUTOFF))
                 provider_id = self.PROVIDERS[match_name]
                 
             else:
