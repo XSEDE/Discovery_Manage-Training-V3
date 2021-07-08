@@ -11,12 +11,13 @@ import json
 import logging
 import logging.handlers
 import os
+from pid import PidFile
 import psycopg2
 import pwd
 import re
 import shutil
 import signal
-import sys
+import sys, traceback
 from urllib.parse import urlparse
 from fuzzywuzzy import process
 import urllib.request
@@ -38,6 +39,10 @@ import elasticsearch_dsl.connections
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 
 import pdb
+
+# Used during initialization before loggin is enabled
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 def datetime_localparse(indate):
     try:
@@ -126,15 +131,23 @@ class HandleLoad():
         try:
             with open(config_path, 'r') as file:
                 conf = file.read()
-                file.close()
         except IOError as e:
-            raise
+            eprint('Error "{}" reading config={}'.format(e, config_path))
+            sys.exit(1)
         try:
             self.config = json.loads(conf)
         except ValueError as e:
-            print('Error "{}" parsing config={}'.format(e, config_path))
+            eprint('Error "{}" parsing config={}'.format(e, config_path))
             sys.exit(1)
 
+        if self.config.get('PID_FILE'):
+            self.pidfile_path =  self.config['PID_FILE']
+        else:
+            name = os.path.basename(__file__).replace('.py', '')
+            self.pidfile_path = '/var/run/{}/{}.pid'.format(name, name)
+
+    # Setup AFTER we know that no other self is running
+    def Setup(self):
         # Initialize the cutoff level for the fuzzy match algoritm for matching provider names.
         self.FUZZY_SCORE_CUTOFF = int(self.config.get('FUZZY_SCORE_CUTOFF', 90))
 
@@ -147,10 +160,14 @@ class HandleLoad():
         self.logger.setLevel(loglevel_num)
         self.formatter = logging.Formatter(fmt='%(asctime)s.%(msecs)03d %(levelname)s %(message)s', \
                                            datefmt='%Y/%m/%d %H:%M:%S')
-        self.handler = logging.handlers.TimedRotatingFileHandler(self.config['LOG_FILE'], when='W6', \
-                                                                 backupCount = 999, utc = True)
+        self.handler = logging.handlers.TimedRotatingFileHandler(self.config['LOG_FILE'],
+            when='W6', backupCount = 999, utc = True)
         self.handler.setFormatter(self.formatter)
         self.logger.addHandler(self.handler)
+
+        signal.signal(signal.SIGINT, self.exit_signal)
+        signal.signal(signal.SIGTERM, self.exit_signal)
+        self.logger.info('Starting program={} pid={}, uid={}({})'.format(os.path.basename(__file__), os.getpid(), os.geteuid(), pwd.getpwuid(os.geteuid()).pw_name))
 
         # Verify arguments and parse compound arguments
         SOURCE_URL = getattr(self.args, 'src') or self.config.get('SOURCE_URL', None)
@@ -251,10 +268,6 @@ class HandleLoad():
             # Merge CATALOG config and STEP config, with latter taking precendence
             self.STEPS.append({**self.CATALOGS[stepconf['CATALOGURN']], **stepconf})
 
-        signal.signal(signal.SIGINT, self.exit_signal)
-        signal.signal(signal.SIGTERM, self.exit_signal)
-        self.logger.info('Starting program={} pid={}, uid={}({})'.format(os.path.basename(__file__), os.getpid(), os.geteuid(), pwd.getpwuid(os.geteuid()).pw_name))
-
     def Connect_Source(self, urlparse):
         [host, port] = urlparse.netloc.split(':')
         port = port or '5432'
@@ -267,6 +280,9 @@ class HandleLoad():
         self.logger.info('Connected to PostgreSQL database {} as {}'.format(database, self.config['SOURCE_DBUSER']))
         return(cursor)
 
+    def Disconnect_Source(self, cursor):
+        cursor.close()
+
     def Connect_Elastic(self):
         if 'ELASTIC_HOSTS' in self.config:
             self.ESEARCH = elasticsearch_dsl.connections.create_connection( \
@@ -276,9 +292,6 @@ class HandleLoad():
             ResourceV3Index.init()
         else:
             self.ESEARCH = None
-
-    def Disconnect_Source(self, cursor):
-        cursor.close()
 
     # Check if a string containing a list of commma separated words
     # has at least one word in common with an array of words.
@@ -718,7 +731,6 @@ class HandleLoad():
                 self.PROVIDERS[provider_name] = record.ID
 
     def Find_Provider(self, provider_name):
-
         provider_id = None
 
         if (provider_name.lower() in self.PROVIDERS):
@@ -737,23 +749,29 @@ class HandleLoad():
 
         return(provider_id)
 
-    def SaveDaemonLog(self, path):
+    def SaveDaemonStdOut(self, path):
         # Save daemon log file using timestamp only if it has anything unexpected in it
         try:
-            with open(path, 'r') as file:
-                lines = file.read()
-                if not re.match('^started with pid \d+$', lines) and not re.match('^$', lines):
-                    nowstr = datetime.strftime(datetime.now(), '%Y-%m-%d_%H:%M:%S')
-                    newpath = '{}.{}'.format(path, nowstr)
-                    shutil.move(path, newpath)
-                    print('SaveDaemonLog as {}'.format(newpath))
+            file = open(path, 'r')
+            lines = file.read()
+            file.close()
+            if not re.match("^started with pid \d+$", lines) and not re.match("^$", lines):
+                ts = datetime.strftime(datetime.now(), '%Y-%m-%d_%H:%M:%S')
+                newpath = '{}.{}'.format(path, ts)
+                self.logger.debug('Saving previous daemon stdout to {}'.format(newpath))
+                shutil.copy(path, newpath)
         except Exception as e:
-            print('Exception in SaveDaemonLog({})'.format(path))
+            self.logger.error('Exception in SaveDaemonStdOut({})'.format(path))
         return
 
-    def exit_signal(self, signal, frame):
-        self.logger.critical('Caught signal={}, exiting...'.format(signal))
-        sys.exit(0)
+    def exit_signal(self, signum, frame):
+        self.logger.critical('Caught signal={}({}), exiting with rc={}'.format(signum, signal.Signals(signum).name, signum))
+        sys.exit(signum)
+        
+    def exit(self, rc):
+        if rc:
+            self.logger.error('Exiting with rc={}'.format(rc))
+        sys.exit(rc)
 
     def run(self):
         while True:
@@ -816,13 +834,14 @@ class HandleLoad():
         self.logger.info(summary_msg)
 
 if __name__ == '__main__':
-    try:
-        router = HandleLoad()
-        myrouter = router.run()
-    except Exception as e:
-        msg = '{} Exception: {}'.format(type(e).__name__, e)
-        router.logger.error(msg)
-        sys.exit(1)
-    else:
-        sys.exit(0)
-        
+    router = HandleLoad()
+    with PidFile(router.pidfile_path):
+        try:
+            router.Setup()
+            rc = router.Run()
+        except Exception as e:
+            msg = '{} Exception: {}'.format(type(e).__name__, e)
+            router.logger.error(msg)
+            traceback.print_exc(file=sys.stdout)
+            rc = 1
+    router.exit(rc)
