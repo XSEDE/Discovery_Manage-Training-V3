@@ -1,11 +1,12 @@
 tag-0.2-20210709 JP
-  - Apply most recent standard router methods
-  - Change Type=Training Session to Type=Training
+  - Apply most recent standard router coding conventions
+  - Change 'Type=Training Session' to 'Type=Training'
   - Markup warnings now logged at debug level
   - Fuzzy matches only printed at debug level
   - Only match to Affiliation=xsede.org organizations
   - Improve ShortDescriptions
   - Print no Provider matches as a summary at the end
+  - Don't text encode EntityJSON, represent multiple source records as an EntityJSON list
 
 tag-0.2-20210708 JP
   - Replace 'xsede.org' with 'info.xsede.org' in Warehouse_XDCDB_Training_Class_Session GlobalURN
