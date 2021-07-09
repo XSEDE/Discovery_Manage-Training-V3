@@ -1,3 +1,6 @@
+tag-0.2-20210709e JP
+  - Use json.loads to convert cleaned and encoded JSON back into a Python dictionary
+
 tag-0.2-20210709d JP
   - Use DjangoJSONEncoder to convert Decimal and other fields as necesary
 

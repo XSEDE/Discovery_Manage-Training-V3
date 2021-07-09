@@ -504,7 +504,8 @@ class HandleLoad():
             if DATA['store_to_warehouse'] == False:
                 continue
 
-            EntityJSON = DjangoJSONEncoder().encode(DATA['EntityJSON'])
+            # Encode and reverse; ugly, but it does the necessary Decimal and other cleanup
+            EntityJSON = json.loads(DjangoJSONEncoder().encode(DATA['EntityJSON']))
             try:
                 local = ResourceV3Local(
                             ID = DATA['ID'],
@@ -670,7 +671,8 @@ class HandleLoad():
             parent_id = item['training_class_id'] # parent class id
             myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'xdcdb_training_class', id_str)
             # Store the parent's and item's information
-            EntityJSON = DjangoJSONEncoder().encode({parent_id: self.COURSEINFO[parent_id]['EntityJSON'], myGLOBALURN: item})
+            # Encode and reverse; ugly, but it does the necessary Decimal and other cleanup
+            EntityJSON = json.loads(DjangoJSONEncoder().encode({parent_id: self.COURSEINFO[parent_id]['EntityJSON'], myGLOBALURN: item}))
             try:
                 local = ResourceV3Local(
                             ID = myGLOBALURN,
