@@ -29,6 +29,7 @@ UTC_TZ = pytz.timezone('UTC')
 
 import django
 django.setup()
+from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
 from django.utils.dateparse import parse_datetime
 from django_markup.markup import formatter
@@ -68,6 +69,17 @@ class MissingTypeEncoder(json.JSONEncoder):
             return {'__String__': obj.timestamp()}
         # Let the base class default method raise the TypeError
         return json.JSONEncoder.default(self, obj)
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, decimal.Decimal):
+            # wanted a simple yield str(o) in the next line,
+            # but that would mean a yield on the line with super(...),
+            # which wouldn't work (see my comment below), so...
+            return (str(o) for o in [o])
+        return super(DecimalEncoder, self).default(o)
+
+from django.core.serializers.json import DjangoJSONEncoder
 
 class Format_Description():
 #   Initialize a Description, smart append, and render it in html using django-markup
@@ -489,10 +501,10 @@ class HandleLoad():
 
         # Store the merged list of spreadsheet and portal classes in the warehouse.
         for course_name, DATA in self.COURSEDATA.items():
-
             if DATA['store_to_warehouse'] == False:
                 continue
 
+            EntityJSON = DjangoJSONEncoder().encode(DATA['EntityJSON'])
             try:
                 local = ResourceV3Local(
                             ID = DATA['ID'],
@@ -504,7 +516,7 @@ class HandleLoad():
                             LocalURL = config.get('SOURCEDEFAULTURL', None),
                             CatalogMetaURL = self.CATALOGURN_to_URL(config['CATALOGURN']),
                             # Store the item's information appended to its parent's JSON information.
-                            EntityJSON = DATA['EntityJSON'],
+                            EntityJSON = EntityJSON,
                     )
                 local.save()
             except Exception as e:
@@ -657,7 +669,8 @@ class HandleLoad():
             id_str = str(item['id'])       # From number
             parent_id = item['training_class_id'] # parent class id
             myGLOBALURN = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'xdcdb_training_class', id_str)
-
+            # Store the parent's and item's information
+            EntityJSON = DjangoJSONEncoder().encode({parent_id: self.COURSEINFO[parent_id]['EntityJSON'], myGLOBALURN: item})
             try:
                 local = ResourceV3Local(
                             ID = myGLOBALURN,
@@ -668,9 +681,8 @@ class HandleLoad():
                             LocalType = contype,
                             LocalURL = config.get('SOURCEDEFAULTURL', None),
                             CatalogMetaURL = self.CATALOGURN_to_URL(config['CATALOGURN']),
-                            # Store the item's information appended to its parent's JSON information.
 #                            EntityJSON = self.COURSEINFO[parent_id]['EntityJSON'] + json.dumps(item, cls=MissingTypeEncoder)
-                            EntityJSON = {parent_id: self.COURSEINFO[parent_id]['EntityJSON'], myGLOBALURN: item]
+                            EntityJSON = EntityJSON
                     )
                 local.save()
             except Exception as e:

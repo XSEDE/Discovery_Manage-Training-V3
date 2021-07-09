@@ -1,3 +1,6 @@
+tag-0.2-20210709d JP
+  - Use DjangoJSONEncoder to convert Decimal and other fields as necesary
+
 tag-0.2-20210709c JP
   - EntityJSON can't be a list, so make it a dict with myGLOBALURN keys
 
