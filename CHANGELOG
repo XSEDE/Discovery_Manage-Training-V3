@@ -1,3 +1,6 @@
+tag-0.2-20210709c JP
+  - EntityJSON can't be a list, so make it a dict with myGLOBALURN keys
+
 tag-0.2-20210709b JP
   - Don't text encode EntityJSON, represent multiple source records as an EntityJSON list
 

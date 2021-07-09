@@ -424,14 +424,14 @@ class HandleLoad():
 
                 # Merge the JSON data.
 #                DATA['EntityJSON'] += json.dumps(item, cls=MissingTypeEncoder)
-                DATA['EntityJSON'].append(item)
+                DATA['EntityJSON'][myGLOBALURN] = item
 
             # This course is unique in the Spreadsheet data, store it in COURSEDATA.
             else:
                 DATA = {}
                 DATA['ID'] = myGLOBALURN
 #                DATA['EntityJSON'] = json.dumps(item, cls=MissingTypeEncoder)
-                DATA['EntityJSON'] = [item]
+                DATA['EntityJSON'] = {myGLOBALURN: item}
 
             # All unique spreadsheet course data will be stored in the warehouse.
             DATA['store_to_warehouse'] = True
@@ -584,7 +584,7 @@ class HandleLoad():
             DATA['LocalID'] = id_str
             DATA['LocalType'] = contype
 #            DATA['EntityJSON'] = json.dumps(item, cls=MissingTypeEncoder)
-            DATA['EntityJSON'] = item
+            DATA['EntityJSON'] = {myGLOBALURN: item}
             DATA['Name'] = item['training_name']
 
             if item['training_type'] == 'IN_PERSON':
@@ -670,7 +670,7 @@ class HandleLoad():
                             CatalogMetaURL = self.CATALOGURN_to_URL(config['CATALOGURN']),
                             # Store the item's information appended to its parent's JSON information.
 #                            EntityJSON = self.COURSEINFO[parent_id]['EntityJSON'] + json.dumps(item, cls=MissingTypeEncoder)
-                            EntityJSON = [self.COURSEINFO[parent_id]['EntityJSON'], item]
+                            EntityJSON = {parent_id: self.COURSEINFO[parent_id]['EntityJSON'], myGLOBALURN: item]
                     )
                 local.save()
             except Exception as e:
