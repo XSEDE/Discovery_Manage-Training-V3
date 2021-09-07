@@ -1,3 +1,6 @@
+tag-0.3-20210907 JP
+  - Switch to .objects.update_or_create for Drupal 3.0
+
 tag-0.2-20210709e JP
   - Use json.loads to convert cleaned and encoded JSON back into a Python dictionary
 

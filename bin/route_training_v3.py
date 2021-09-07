@@ -380,12 +380,13 @@ class HandleLoad():
         for relatedID in newRELATIONS:
             try:
                 relationURN = ':'.join([myURN, md5(relatedID.encode('UTF-8')).hexdigest()])
-                relation = ResourceV3Relation(
+                relation, created = ResourceV3Relation.objects.update_or_create(
                             ID = relationURN,
-                            FirstResourceID = myURN,
-                            SecondResourceID = relatedID,
-                            RelationType = newRELATIONS[relatedID],
-                     )
+                            defaults = {
+                                'FirstResourceID': myURN,
+                                'SecondResourceID': relatedID,
+                                'RelationType': newRELATIONS[relatedID]
+                            })
                 relation.save()
             except Exception as e:
                 msg = '{} saving Relation ID={}: {}'.format(type(e).__name__, relationURN, e)
@@ -507,18 +508,18 @@ class HandleLoad():
             # Encode and reverse; ugly, but it does the necessary Decimal and other cleanup
             EntityJSON = json.loads(DjangoJSONEncoder().encode(DATA['EntityJSON']))
             try:
-                local = ResourceV3Local(
+                local, created = ResourceV3Local.objects.update_or_create(
                             ID = DATA['ID'],
-                            CreationTime = datetime.now(timezone.utc),
-                            Validity = self.DefaultValidity,
-                            Affiliation = self.Affiliation,
-                            LocalID = DATA['LocalID'],
-                            LocalType = DATA['LocalType'],
-                            LocalURL = config.get('SOURCEDEFAULTURL', None),
-                            CatalogMetaURL = self.CATALOGURN_to_URL(config['CATALOGURN']),
-                            # Store the item's information appended to its parent's JSON information.
-                            EntityJSON = EntityJSON,
-                    )
+                            defaults = {
+                                'CreationTime': datetime.now(timezone.utc),
+                                'Validity': self.DefaultValidity,
+                                'Affiliation': self.Affiliation,
+                                'LocalID': DATA['LocalID'],
+                                'LocalType': DATA['LocalType'],
+                                'LocalURL': config.get('SOURCEDEFAULTURL', None),
+                                'CatalogMetaURL': self.CATALOGURN_to_URL(config['CATALOGURN']),
+                                'EntityJSON': EntityJSON
+                            })
                 local.save()
             except Exception as e:
                 msg = '{} saving Training Class local ID={}: {}'.format(type(e).__name__, DATA['ID'], e)
@@ -528,21 +529,22 @@ class HandleLoad():
             new[DATA['ID']] = local
 
             try:
-                resource = ResourceV3(
+                resource, created = ResourceV3.objects.update_or_create(
                             ID = DATA['ID'],
-                            Affiliation = self.Affiliation,
-                            LocalID = DATA['LocalID'],
-                            QualityLevel = 'Production',
-                            Name = DATA['Name'],
-                            ResourceGroup = DATA['ResourceGroup'],
-                            Type = myRESTYPE,
-                            ShortDescription = DATA['ShortDescription'],
-                            ProviderID = DATA['ProviderID'],
-                            Description = DATA['Description'],
-                            Topics = DATA['Topics'],
-                            Keywords = DATA['Keywords'],
-                            Audience = self.Affiliation,
-                    )
+                            defaults = {
+                                'Affiliation': self.Affiliation,
+                                'LocalID': DATA['LocalID'],
+                                'QualityLevel': 'Production',
+                                'Name': DATA['Name'],
+                                'ResourceGroup': DATA['ResourceGroup'],
+                                'Type': myRESTYPE,
+                                'ShortDescription': DATA['ShortDescription'],
+                                'ProviderID': DATA['ProviderID'],
+                                'Description': DATA['Description'],
+                                'Topics': DATA['Topics'],
+                                'Keywords': DATA['Keywords'],
+                                'Audience': self.Affiliation
+                            })
                 resource.save()
                 if self.ESEARCH:
                     resource.indexing()
@@ -674,18 +676,18 @@ class HandleLoad():
             # Encode and reverse; ugly, but it does the necessary Decimal and other cleanup
             EntityJSON = json.loads(DjangoJSONEncoder().encode({parent_id: self.COURSEINFO[parent_id]['EntityJSON'], myGLOBALURN: item}))
             try:
-                local = ResourceV3Local(
+                local, created = ResourceV3Local.objects.update_or_create(
                             ID = myGLOBALURN,
-                            CreationTime = datetime.now(timezone.utc),
-                            Validity = self.DefaultValidity,
-                            Affiliation = self.Affiliation,
-                            LocalID = id_str,
-                            LocalType = contype,
-                            LocalURL = config.get('SOURCEDEFAULTURL', None),
-                            CatalogMetaURL = self.CATALOGURN_to_URL(config['CATALOGURN']),
-#                            EntityJSON = self.COURSEINFO[parent_id]['EntityJSON'] + json.dumps(item, cls=MissingTypeEncoder)
-                            EntityJSON = EntityJSON
-                    )
+                            defaults = {
+                                'CreationTime': datetime.now(timezone.utc),
+                                'Validity': self.DefaultValidity,
+                                'Affiliation': self.Affiliation,
+                                'LocalID': id_str,
+                                'LocalType': contype,
+                                'LocalURL': config.get('SOURCEDEFAULTURL', None),
+                                'CatalogMetaURL': self.CATALOGURN_to_URL(config['CATALOGURN']),
+                                'EntityJSON': EntityJSON
+                            })
                 local.save()
             except Exception as e:
                 msg = '{} saving XDCDB Training Session local ID={}: {}'.format(type(e).__name__, myGLOBALURN, e)
@@ -697,23 +699,24 @@ class HandleLoad():
             session_name = self.COURSEINFO[parent_id]['Name']
 
             try:
-                resource = ResourceV3(
+                resource, created = ResourceV3.objects.update_or_create(
                             ID = myGLOBALURN,
-                            Affiliation = self.Affiliation,
-                            LocalID = id_str,
-                            QualityLevel = 'Production',
-                            Name = session_name,
-                            ResourceGroup = self.COURSEINFO[parent_id]['ResourceGroup'],
-                            Type = myRESTYPE,
-                            ShortDescription = session_name,
-                            ProviderID = None,
-                            Description = self.COURSEINFO[parent_id]['Description'],
-                            Topics = self.COURSEINFO[parent_id]['Topics'],
-                            Keywords = self.COURSEINFO[parent_id]['Keywords'],
-                            Audience = self.Affiliation,
-                            StartDateTime = item['start_date'],
-                            EndDateTime = item['end_date'],
-                     )
+                            defaults = {
+                                'Affiliation': self.Affiliation,
+                                'LocalID': id_str,
+                                'QualityLevel': 'Production',
+                                'Name': session_name,
+                                'ResourceGroup': self.COURSEINFO[parent_id]['ResourceGroup'],
+                                'Type': myRESTYPE,
+                                'ShortDescription': session_name,
+                                'ProviderID': None,
+                                'Description': self.COURSEINFO[parent_id]['Description'],
+                                'Topics': self.COURSEINFO[parent_id]['Topics'],
+                                'Keywords': self.COURSEINFO[parent_id]['Keywords'],
+                                'Audience': self.Affiliation,
+                                'StartDateTime': item['start_date'],
+                                'EndDateTime': item['end_date']
+                            })
                 resource.save()
                 if self.ESEARCH:
                     resource.indexing()
