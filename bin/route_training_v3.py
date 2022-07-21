@@ -236,6 +236,10 @@ class HandleLoad():
         # Map stored by Warehouse provider name contains provider URNs.
         self.PROVIDERS = {}
 
+        # XDCDB organization names and aliases.
+        self.XDCDB_Aliases = {}
+        self.XDCDB_OrgID = {}
+
         # Map stored by class title used to merge class information from the spreadsheet
         # and the portal table. Allow case insensitive searches of keys.
         self.COURSEDATA = {}
@@ -452,7 +456,7 @@ class HandleLoad():
             DATA['LocalID'] = item['id']
             DATA['LocalType'] = contype
             DATA['Name'] = item['title']
-            DATA['ShortDescription'] = item['title'] + ", Length: " + item['length']
+            DATA['ShortDescription'] = item['title']
 
             # DATA['Description'] = item['description']
             Description = Format_Description(item['description'])
@@ -466,6 +470,9 @@ class HandleLoad():
             if provider_id == None:
                 Description.blank_line()
                 Description.append('- Provider: {}'.format(item['center']))
+
+            Description.blank_line()
+            Description.append('Length: {}'.format(item['length']))
 
             Description.blank_line()
             Description.append('XSEDE Training Information: https://www.xsede.org/for-users/training')
@@ -742,6 +749,28 @@ class HandleLoad():
         self.log_target(me)
         return(True, '')
 
+    # Create a map with all organization names and their aliases as keys. The values are the corresponding organization names to use in the warehouse.
+    def Load_Organizations(self, cursor):
+        contype = 'XDCDBOrganizations'
+        sql = 'select organization_alias, organization_name, organization_abbrev, B.organization_id from acct.organization_aliases A FULL JOIN acct.organizations B ON A.organization_id = B.organization_id WHERE is_reconciled = \'t\' ORDER BY organization_name;'
+        content = self.Read_SQL(cursor, sql, contype)
+
+        for item in content[contype]:
+            organization = str(item['organization_name']).lower()
+            alias = str(item['organization_alias']).lower()
+            abbreviation = str(item['organization_abbrev']).lower()
+
+            self.XDCDB_OrgID[organization] = item['organization_id']
+
+            if abbreviation:
+                self.XDCDB_Aliases[abbreviation] = organization
+
+            if alias:
+                self.XDCDB_Aliases[alias] = organization
+
+            self.XDCDB_Aliases[organization] = organization
+
+
     def Read_Providers(self):
         # Store the provider names in lower case
         for record in ResourceV3.objects.filter(Affiliation__exact=self.Affiliation).filter(Type__exact = 'Provider'):
@@ -752,21 +781,101 @@ class HandleLoad():
             else:
                 self.PROVIDERS[provider_name] = record.ID
 
+    # Add the provider to the Warehouse store its ID in PROVIDERS and return the URN ID.
+    def Add_Provider(self, provider_name):
+        provider_id = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'training', 'organization', 'xdcdb', str(self.XDCDB_OrgID[provider_name]))
+#TODO - need to create the JSON.
+        entity_json = ''
+
+        # Add the provider to the Warehouse with its new URN.
+        try:
+            local = ResourceV3Local(
+                        ID = provider_id,
+                        CreationTime = datetime.now(timezone.utc),
+                        Validity = self.DefaultValidity,
+                        Affiliation = self.Affiliation,
+                        LocalID = provider_name,
+                        LocalType = 'provider',
+                        LocalURL = self.config.get('SOURCEDEFAULTURL', None),
+                        EntityJSON = entity_json,
+                )
+            local.save()
+        except Exception as e:
+            msg = '{} saving Provider local ID={}: {}'.format(type(e).__name__, provider_name, e)
+            self.logger.error(msg)
+            return(False, msg)
+
+#TODO - Need code to clean out old providers?
+#        new[provider_id] = local
+
+        try:
+            resource = ResourceV3(
+                        ID = provider_id,
+                        Affiliation = self.Affiliation,
+                        LocalID = provider_name,
+                        QualityLevel = 'Production',
+                        Name = provider_name,
+                        ResourceGroup = 'Organizations',
+                        Type = 'Provider',
+                        ShortDescription = provider_name,
+                        ProviderID = None,
+                        Description = None,
+                        Topics = None,
+                        Keywords = None,
+                        Audience = self.Affiliation,
+                 )
+            resource.save()
+            if self.ESEARCH:
+                resource.indexing()
+        except Exception as e:
+            msg = '{} saving ID={}: {}'.format(type(e).__name__, provider_id, e)
+            self.logger.error(msg)
+            return(False, msg)
+
+        # Store the new provider in the list of warehouse providers.
+        self.PROVIDERS[provider_name] = provider_id
+        return (provider_id)
+
     def Find_Provider(self, provider_name):
         provider_id = None
+        xdcdb_name = None
 
-        if (provider_name.lower() in self.PROVIDERS):
-            provider_id = self.PROVIDERS[provider_name.lower()]
+        lower_name = provider_name.lower()
 
-        # Perform a fuzzy match of the provider name if an exact match isn't found.
+        # Check if the provider name is in the Warehouse.
+        if (lower_name in self.PROVIDERS):
+            provider_id = self.PROVIDERS[lower_name]
+
+        # If not, check if the provider name is in the XDCDB.
+        elif (lower_name in self.XDCDB_Aliases):
+            # The provider isn't in the Warehouse but is in the XDCDB, flag that it needs to be added.
+            xdcdb_name = self.XDCDB_Aliases[lower_name]
+
+        # Next perform a fuzzy match of the provider name in the Warehouse.
         else:
-            (match_name, score) = process.extractOne(provider_name.lower(), self.PROVIDERS.keys())
+            score = 0
+            if self.PROVIDERS:
+                (match_name, score) = process.extractOne(lower_name, self.PROVIDERS.keys())
 
             if (score > self.FUZZY_SCORE_CUTOFF):
-                self.logger.debug('Using fuzzy match of {} to {} with score {} cutoff {}'.format(provider_name, match_name, score, self.FUZZY_SCORE_CUTOFF))
+                self.logger.info('Using fuzzy match of "{}" to "{}" in Warehouse with score {} cutoff {}'.format(provider_name, match_name, score, self.FUZZY_SCORE_CUTOFF))
                 provider_id = self.PROVIDERS[match_name]
+
+            # Lastly perform a fuzzy match of the provider name in the XDCDB.
             else:
-                self.NOTPROVIDER[provider_name] = self.NOTPROVIDER.get(provider_name, 0) + 1
+                score = 0
+                if self.XDCDB_Aliases:
+                    (match_name, score) = process.extractOne(lower_name, self.XDCDB_Aliases.keys())
+
+                if (score > self.FUZZY_SCORE_CUTOFF):
+                    self.logger.info('Using fuzzy match of "{}" to "{}" in XDCDB with score {} cutoff {}'.format(provider_name, match_name, score, self.FUZZY_SCORE_CUTOFF))
+                    xdcdb_name = self.XDCDB_Aliases[match_name]
+                else:
+                    self.NOTPROVIDER[provider_name] = self.NOTPROVIDER.get(provider_name, 0) + 1
+
+        # If a match wasn't found in PROVIDERS but an xdcdb_name was matched, add the provider to the Warehouse now.
+        if not provider_id and xdcdb_name:
+            provider_id = self.Add_Provider(xdcdb_name)
 
         return(provider_id)
 
@@ -799,6 +908,7 @@ class HandleLoad():
             if self.SOURCE_PARSE.scheme == 'postgresql':
                 CURSOR = self.Connect_Source(self.SOURCE_PARSE)
             self.Connect_Elastic()
+            self.Load_Organizations(CURSOR)
             self.STATS = Counter()
             self.Read_Providers()
             self.PROCESSING_SECONDS = {}
@@ -850,7 +960,7 @@ class HandleLoad():
 
         # Print out all the providers that weren't found and how many times they were used (more useful than logging each)
         for provider in self.NOTPROVIDER:
-            self.logger.info('Provider name not found {} (used: {})'.format(provider, self.NOTPROVIDER[provider]))
+            self.logger.info('Provider name not found "{}" (used: {})'.format(provider, self.NOTPROVIDER[provider]))
 
     def log_target(self, me):
         summary_msg = 'Processed {} in {:.3f}/seconds: {}/updates, {}/deletes, {}/skipped'.format(me,
@@ -862,6 +972,7 @@ if __name__ == '__main__':
     router = HandleLoad()
     with PidFile(router.pidfile_path):
         try:
+
             router.Setup()
             rc = router.Run()
         except Exception as e:
