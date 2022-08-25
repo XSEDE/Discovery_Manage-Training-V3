@@ -783,7 +783,7 @@ class HandleLoad():
 
     # Add the provider to the Warehouse store its ID in PROVIDERS and return the URN ID.
     def Add_Provider(self, provider_name):
-        provider_id = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'resource', 'training', 'organization', 'xdcdb', str(self.XDCDB_OrgID[provider_name]))
+        provider_id = self.format_GLOBALURN(self.URNPrefix, 'info.xsede.org', 'catalog', 'xsede.org', 'xdcdb_acct_organizations', str(self.XDCDB_OrgID[provider_name]))
 #TODO - need to create the JSON.
         entity_json = ''
 
