@@ -1,0 +1,80 @@
+Manage-Training-V3 Router for XSEDE Information Services
+
+This script is used to synchronize XSEDE Training Resources to the Information Services cross-institutional Resources Catalog Version 3.
+It gathers training information from both the XSEDE portal database and a google spreadsheet maintained by Susan Mehringer
+   (https://docs.google.com/spreadsheets/d/1pBvJKRBug9ivIAutF62JkJVhR23rYlg0yb-b_QXfxOo/edit#gid=0)
+It also gathers a list of organization names, aliases, and abbreviations from the XSEDE portal database acct.organization_aliases and acct.organizations tables.
+
+The script gets the list of organization names from XDCDB (the XSEDE Portal database)
+It gets a list of courses previously stored in the XSEDE Warehouse
+It reads a list of courses from XDCDB
+It merges in a list of courses from the spreadsheet
+It creates entries for the courses in the Warehouse glue2.resource_v3_resourcev3 and glue2.resource_v3_resourcev3local tables.
+It creates entries for the providers in the Warehouse glue2.resource_v3_resourcev3 and glue2.resource_v3_resourcev3local tables if they don't already exist.
+
+The Training data gatherer is stored in github at: https://github.com/XSEDE/Discovery_Manage-Training-V3.git
+
+Development work was done on info9.dyn.xsede.org in the /soft/warehouse-apps-1.0/Manage-Training-V3 directory.
+In the /soft/warehouse-apps-1.0/Manage-Training-V3 directory, the DEV/, conf/, and var/ directories were created.
+The source from git was extracted to the DEV/ directory for development.
+A copy of the current source from git was extracted to the PROD/ directory.
+A testing XSEDE warehouse database was set up on the test machine.
+
+
+These are the important files under the /soft/warehouse-apps-1.0/Manage-Training-V3 directory:
+Contact Peter Enstrom <enstrom@illinois.edu> or JP Navarro <navarro@anl.gov> for the passwords.
+
+./conf/django_xsede_warehouse.conf
+	This file is copied from /soft/warehouse-apps-1.0/Manage-Training-V3/DEV/conf/ and the passwords are entered into the copy.
+	Passwords aren't stored in the conf/django_xsede_warehouse.conf file in git but are needed to run the script.
+	{
+		"DEBUG": false,
+		"SETTINGS_MODE": "ROUTER",
+		"ALLOWED_HOSTS": ["*"],
+		"DB_HOSTNAME_READ": "<CONFIGURE>",
+		"DB_HOSTNAME_WRITE": "<CONFIGURE>",
+		"GLUE2_PASS": "<CONFIGURE>",
+		"XCSR_PASS": "<CONFIGURE>",
+		"DJANGO_PASS": "<CONFIGURE>",
+		"DJANGO_SECRET_KEY": "<CONFIGURE>",
+		"G2_LOG": "/soft/warehouse-apps-1.0/Manage-Training-V3/var/route_training_v3.log",
+		"DB_LOG": "/soft/warehouse-apps-1.0/Manage-Training-V3/var/route_training_v3.db.log",
+		"SOCIAL_AUTH_GLOBUS_SECRET": "<CONFIGURE>",
+		"SYSLOG_SOCK": "/dev/log",
+		"API_BASE": "/wh1"
+	}
+
+./conf/route_training_v3.conf
+	This file is copied from /soft/warehouse-apps-1.0/Manage-Training-V3/DEV/conf/ and the passwords are entered into the copy.
+	Passwords aren't stored in the conf/route_training_v3.conf file in git but are needed to run the script.
+	     "SOURCE_URL": "<CONFIGURE>",
+	     "SOURCE_DBUSER": "<CONFIGURE>",
+	     "SOURCE_DBPASS": "<CONFIGURE>",
+
+./DEV/bin/route_training_v3.py
+	The data gatherer script
+
+./DEV/sbin/route_training_v3.sh
+	Wrapper to run the data gatherer script.
+	Change APP_SOURCE from "PROD" to "DEV" to execute the development copy
+		APP_SOURCE=${APP_BASE}/DEV
+	./route_training_v3.sh start
+
+./Pipfile
+	Copy from DEV/Pipfile
+./Pipfile.lock
+	Copy from DEV/Pipfile.lock
+
+
+In the /soft/warehouse-apps-1.0/Manage-Training-V3 directory execute:
+$ pipenv shell
+
+In the /soft/warehouse-apps-1.0/Manage-Training-V3/DEV/sbin directory execute:
+$ route_training_v3.sh start
+
+Create the /soft/warehouse-apps-1.0/Manage-Training-V3/var/ directory, log files will be written to it.
+
+The conf/route_training_v3.conf file lists the steps that the script will take in order. 
+Each step has a "CATALOGURN" specified.
+This value is used to look up the "CatalogAPIURL" query string from the glue2.resource_v3_resourcev3catalog table in the warehouse database.
+The query string indicates whether it is querying a database or a spreadsheet.
