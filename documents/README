@@ -18,7 +18,20 @@ Development work was done on info9.dyn.xsede.org in the /soft/warehouse-apps-1.0
 In the /soft/warehouse-apps-1.0/Manage-Training-V3 directory, the DEV/, conf/, and var/ directories were created.
 The source from git was extracted to the DEV/ directory for development.
 A copy of the current source from git was extracted to the PROD/ directory.
+
 A testing XSEDE warehouse database was set up on the test machine.
+To access it, execute:
+# psql -U postgres warehouse
+
+In psql you can connect to the warehouse database and see the queries that are used by the data collector:
+# \c warehouse
+# select "ID", "CatalogAPIURL" from glue2.resource_v3_resourcev3catalog where "ID" like '%training%';
+
+urn:ogf:glue2:info.xsede.org:catalog:xsede.org:xdcdb_training_class         | sql:SELECT t1.*,t3.* FROM portal.training_class AS t1,portal.training_class_session AS t2 LEFT JOIN portal.training_session_to_category AS t3 ON t2.id=t3.session_id WHERE t1.id=t2.training_class_id;
+
+urn:ogf:glue2:info.xsede.org:catalog:xsede.org:xdcdb_training_class_session | sql:SELECT * FROM portal.training_class_session WHERE start_date >= NOW()
+
+urn:ogf:glue2:info.xsede.org:catalog:xsede.org:spreadsheet_training_class   | sheet:https://docs.google.com/spreadsheets/d/1pBvJKRBug9ivIAutF62JkJVhR23rYlg0yb-b_QXfxOo/export?format=csv
 
 
 These are the important files under the /soft/warehouse-apps-1.0/Manage-Training-V3 directory:
