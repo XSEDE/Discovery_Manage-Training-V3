@@ -33,6 +33,8 @@ urn:ogf:glue2:info.xsede.org:catalog:xsede.org:xdcdb_training_class_session | sq
 
 urn:ogf:glue2:info.xsede.org:catalog:xsede.org:spreadsheet_training_class   | sheet:https://docs.google.com/spreadsheets/d/1pBvJKRBug9ivIAutF62JkJVhR23rYlg0yb-b_QXfxOo/export?format=csv
 
+In order to change to using a different spreadsheet, such as Susan Mehringer's that only lists Cornell courses, update the entry in the warehouse database (NOTE: the URL for the spreadsheet needs to end in "export?format=csv", not "edit"):
+UPDATE glue2.resource_v3_resourcev3catalog SET "CatalogAPIURL" = 'sheet:https://docs.google.com/spreadsheets/d/1KdV4QePsc-mwkgSQ1GWesaTaQgtrA4u7wweSC3hreds/export?format=csv' where "ID" = 'urn:ogf:glue2:info.xsede.org:catalog:xsede.org:spreadsheet_training_class';
 
 These are the important files under the /soft/warehouse-apps-1.0/Manage-Training-V3 directory:
 Contact Peter Enstrom <enstrom@illinois.edu> or JP Navarro <navarro@anl.gov> for the passwords.
